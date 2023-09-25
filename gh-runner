@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+
+import argparse
+import json
+import os
+import subprocess
+
+from prettytable import PrettyTable
+
+
+class GHRunnerExtension:
+    def __init__(self, args: argparse.Namespace):
+        self.json_output: bool = args.json
+        self.args = args
+
+
+    def list_groups(self):
+        assert self.args.organization, 'Organization name is required'
+        result = run_command(
+            f'orgs/{self.args.organization}/actions/runner-groups', options= ['-X', 'GET', '--paginate'])
+
+        if self.json_output:
+            print(json.dumps(result, indent=4))
+        else:
+            table = PrettyTable()
+            table.field_names = ['ID', 'Name']
+            for group in result['runner_groups']:
+                table.add_row([group['id'], group['name']])
+            print(table)
+
+    def show_group(self):
+        assert self.args.organization, 'Organization name is required'
+        if self.args.info_type == 'all' or 'runners':
+            result = run_command(
+                f'orgs/{self.args.organization}/actions/runner-groups/{self.args.group_id}/runners',
+                options=['-X', 'GET', '--paginate'])
+
+            print('Linked runners:')
+            if self.json_output:
+                print(json.dumps(result, indent=4))
+            else:
+                table = PrettyTable()
+                table.field_names = ['ID', 'Name', 'Status', 'Busy', 'Labels']
+                table._max_width = {'Labels': 100}
+                for runner in result['runners']:
+                    table.add_row([
+                        runner['id'],
+                        runner['name'],
+                        runner['status'],
+                        runner['busy'],
+                        ', '.join([label['name'] for label in runner['labels']]),
+                    ])
+                print(table)
+        if self.args.info_type == 'all' or 'repos':
+            result = run_command(
+                f'orgs/{self.args.organization}/actions/runner-groups/{self.args.group_id}/repositories',
+                options=['-X', 'GET', '--paginate'])
+            print('Linked repositories:')
+            if self.json_output:
+                print(json.dumps(result, indent=4))
+            else:
+                table = PrettyTable()
+                table.field_names = ['ID', 'Name']
+                for repo in result['repositories']:
+                    table.add_row([
+                        repo['id'],
+                        repo['full_name'],
+                    ])
+                print(table)
+
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='Github CLI self-hosted runner extension')
+    parser.add_argument('--json', action='store_true', help='Output as plain JSON')
+    parser.add_argument(
+        '--organization',
+        type=str,
+        action='store',
+        help='Github organization name',
+        default=os.environ.get('GH_RUNNER_EXTENSION_GITHUB_ORGANIZATION'))
+    subparsers = parser.add_subparsers(title='Subcommands')
+    subparsers.required = True
+
+    #
+    # groups
+    #
+    groups_sp = subparsers.add_parser('groups', help='Manage self-hosted runner org groups')
+    groups_sp_subparsers = groups_sp.add_subparsers(title='Groups subcommands')
+
+    # list
+    groups_sp_list_sp = groups_sp_subparsers.add_parser('list', help='List all groups')
+    groups_sp_list_sp.set_defaults(func='list_groups')
+
+    #
+    # group
+    #
+    group_sp = subparsers.add_parser('group', help='Manage self-hosted runner org group')
+    group_sp_subparsers = group_sp.add_subparsers(title='Group subcommands')
+
+    # show
+    group_sp_show_sp = group_sp_subparsers.add_parser('show', help='Show group details')
+    group_sp_show_sp.add_argument('group_id', type=int, help='Group ID')
+    group_sp_show_sp.add_argument(
+        'info_type',
+         type=str,
+         choices=['repos', 'runners', 'all'],
+         help='Info type, one of repos|runners|all',
+         default=True)
+    group_sp_show_sp.set_defaults(func='show_group')
+
+    return parser.parse_args()
+
+
+def run_command(endpoint: str, options: list):
+    args = ['gh', 'api', endpoint]
+    args.extend(options)
+
+    result = subprocess.run(args, capture_output=True)
+    return json.loads(result.stdout)
+
+
+def main():
+    args = parse_args()
+    gh_runner_extension = GHRunnerExtension(args)
+    getattr(gh_runner_extension, args.func)()
+
+
+if __name__ == '__main__':
+    main()
