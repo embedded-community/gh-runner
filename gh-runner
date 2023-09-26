@@ -8,11 +8,21 @@ import subprocess
 from prettytable import PrettyTable
 
 
+class GHCLIException(Exception):
+    pass
+
+
 class GHRunnerExtension:
+    # Colors
+    R = "\033[0;31;40m" #RED
+    G = "\033[0;32;40m" # GREEN
+    Y = "\033[0;33;40m" # Yellow
+    B = "\033[0;34;40m" # Blue
+    N = "\033[0m" # Reset
+
     def __init__(self, args: argparse.Namespace):
         self.json_output: bool = args.json
         self.args = args
-
 
     def list_groups(self):
         assert self.args.organization, 'Organization name is required'
@@ -30,7 +40,7 @@ class GHRunnerExtension:
 
     def show_group(self):
         assert self.args.organization, 'Organization name is required'
-        if self.args.info_type == 'all' or 'runners':
+        if self.args.info_type in ['all', 'runners']:
             result = run_command(
                 f'orgs/{self.args.organization}/actions/runner-groups/{self.args.group_id}/runners',
                 options=['-X', 'GET', '--paginate'])
@@ -43,15 +53,24 @@ class GHRunnerExtension:
                 table.field_names = ['ID', 'Name', 'Status', 'Busy', 'Labels']
                 table._max_width = {'Labels': 100}
                 for runner in result['runners']:
+                    if runner['status'] == 'offline':
+                        status = GHRunnerExtension.R + runner['status'] + GHRunnerExtension.N
+                    else:
+                        status = GHRunnerExtension.G + runner['status'] + GHRunnerExtension.N
+
+                    busy = runner['busy']
+                    if runner['busy']:
+                        busy = GHRunnerExtension.Y + 'True' + GHRunnerExtension.N
+
                     table.add_row([
                         runner['id'],
                         runner['name'],
-                        runner['status'],
-                        runner['busy'],
+                        status,
+                        busy ,
                         ', '.join([label['name'] for label in runner['labels']]),
                     ])
                 print(table)
-        if self.args.info_type == 'all' or 'repos':
+        if self.args.info_type in ['all', 'repos']:
             result = run_command(
                 f'orgs/{self.args.organization}/actions/runner-groups/{self.args.group_id}/repositories',
                 options=['-X', 'GET', '--paginate'])
@@ -68,6 +87,25 @@ class GHRunnerExtension:
                     ])
                 print(table)
 
+    def link_repo(self):
+        assert self.args.organization, 'Organization name is required'
+        assert self.args.group_id, 'Group ID is required'
+        assert self.args.repo_id, 'Repository ID is required'
+
+        result = run_command(
+            f'orgs/{self.args.organization}/actions/runner-groups/{self.args.group_id}/repositories/{self.args.repo_id}',
+            options=['-X', 'PUT'])
+        print(f'Repository({self.args.repo_id}) linked to group({self.args.group_id})')
+
+    def unlink_repo(self):
+        assert self.args.organization, 'Organization name is required'
+        assert self.args.group_id, 'Group ID is required'
+        assert self.args.repo_id, 'Repository ID is required'
+
+        result = run_command(
+            f'orgs/{self.args.organization}/actions/runner-groups/{self.args.group_id}/repositories/{self.args.repo_id}',
+            options=['-X', 'DELETE'])
+        print(f'Repository({self.args.repo_id}) unlinked from group({self.args.group_id})')
 
 
 def parse_args():
@@ -109,6 +147,24 @@ def parse_args():
          default=True)
     group_sp_show_sp.set_defaults(func='show_group')
 
+    # manage
+    group_sp_manage_sp = group_sp_subparsers.add_parser('manage', help='Manage group')
+    group_sp_manage_sp.add_argument('group_id', type=int, help='Group ID')
+
+    group_sp_manage_sp_subparsers = group_sp_manage_sp.add_subparsers(title='Manage subcommands')
+
+    # manage - link-repo
+    group_sp_manage_sp_link_repo_sp = group_sp_manage_sp_subparsers.add_parser(
+        'link-repo', help='Link repository to group')
+    group_sp_manage_sp_link_repo_sp.add_argument('repo_id', type=int, help='Repository ID')
+    group_sp_manage_sp_link_repo_sp.set_defaults(func='link_repo')
+
+    # manage - unlink-repo
+    group_sp_manage_sp_unlink_repo_sp = group_sp_manage_sp_subparsers.add_parser(
+        'unlink-repo', help='Unlink repository from group')
+    group_sp_manage_sp_unlink_repo_sp.add_argument('repo_id', type=int, help='Repository ID')
+    group_sp_manage_sp_unlink_repo_sp.set_defaults(func='unlink_repo')
+
     return parser.parse_args()
 
 
@@ -117,6 +173,8 @@ def run_command(endpoint: str, options: list):
     args.extend(options)
 
     result = subprocess.run(args, capture_output=True)
+    if result.stderr:
+        raise GHCLIException(result.stderr.decode('utf-8'))
     return json.loads(result.stdout)
 
 
