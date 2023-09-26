@@ -18,32 +18,47 @@ pip install -r requirements.txt
 Define organization with either `GH_RUNNER_EXTENSION_GITHUB_ORGANIZATION` env variable or giving
 `gh runner --org <github-organization>` parameter for each command execution.
 
+Each command provides detailed help with `--help` parameter.
 
 
-### List organization runner groups
+### List organization self-hosted runner groups
 
 ```bash
-$ gh runner groups --help
-usage: gh-runner groups [-h] {list} ...
-
-optional arguments:
-  -h, --help  show this help message and exit
-
-Groups subcommands:
-  {list}
-    list      List all groups
+$ gh runner groups
 ```
 
-### Show runner group details
+### Create organization self-hosted runner group
 
 ```bash
-$ gh runner group show --help
-usage: gh-runner group show [-h] group_id {repos,runners,all}
+$ gh runner groups create <name> <visibility>
+```
 
-positional arguments:
-  group_id             Group ID
-  {repos,runners,all}  Info type, one of repos|runners|all
+### Show self-hosted runner group details
 
-optional arguments:
-  -h, --help           show this help message and exit
+```bash
+$ gh runner group show <group_id> <info_type>
+```
+
+### Delete self-hosted runner group
+
+```bash
+$ gh runner group delete <group_id>
+```
+
+### List organization repositories
+
+```bash
+$ gh runner repo list
+```
+
+### Link repository to self-hosted runner group
+
+```bash
+$ gh runner group manage <group_id> link-repo <repo_id>
+```
+
+### Unlink repository from self-hosted runner group
+
+```bash
+$ gh runner group manage <group_id> unlink-repo <repo_id>
 ```
