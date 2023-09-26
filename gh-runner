@@ -5,7 +5,7 @@ import json
 import os
 import subprocess
 
-from prettytable import PrettyTable
+from prettytable.prettytable import PrettyTable
 
 
 class GHCLIException(Exception):

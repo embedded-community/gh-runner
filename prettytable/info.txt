@@ -1,0 +1,2 @@
+Copied from https://github.com/jazzband/prettytable/.
+Version 3.9.0.

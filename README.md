@@ -9,10 +9,6 @@ Most of the features in the extension require github enterprise.
 gh extension install embedded-community/gh-runner
 ```
 
-```bash
-pip install -r requirements.txt
-```
-
 ## Usage
 
 Define organization with either `GH_RUNNER_EXTENSION_GITHUB_ORGANIZATION` env variable or giving
