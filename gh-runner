@@ -107,6 +107,14 @@ class GHRunnerExtension:
             options=['-X', 'DELETE'])
         print(f'Repository({self.args.repo_id}) unlinked from group({self.args.group_id})')
 
+    def delete_group(self):
+        assert self.args.organization, 'Organization name is required'
+        assert self.args.group_id, 'Group ID is required'
+
+        result = run_command(
+            f'orgs/{self.args.organization}/actions/runner-groups/{self.args.group_id}',
+            options=['-X', 'DELETE'])
+        print(f'Group({self.args.group_id}) deleted')
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Github CLI self-hosted runner extension')
@@ -164,6 +172,11 @@ def parse_args():
         'unlink-repo', help='Unlink repository from group')
     group_sp_manage_sp_unlink_repo_sp.add_argument('repo_id', type=int, help='Repository ID')
     group_sp_manage_sp_unlink_repo_sp.set_defaults(func='unlink_repo')
+
+    # delete
+    group_sp_delete_sp = group_sp_subparsers.add_parser('delete', help='Delete group')
+    group_sp_delete_sp.add_argument('group_id', type=int, help='Group ID')
+    group_sp_delete_sp.set_defaults(func='delete_group')
 
     return parser.parse_args()
 
