@@ -21,82 +21,82 @@ class GHRunnerExtension:
     N = "\033[0m" # Reset
 
     def __init__(self, args: argparse.Namespace):
-        self.json_output: bool = args.json
-        self.args = args
+        self.args: argparse.Namespace = args
+
+    def run_command(self, endpoint: str, options: list) -> dict:
+        args = ['gh', 'api', endpoint]
+        args.extend(options)
+
+        result = subprocess.run(args, capture_output=True)
+        if result.stderr:
+            raise GHCLIException(result.stderr.decode('utf-8'))
+        if result.stdout:
+            output = json.loads(result.stdout)
+            if self.args.json:
+                print(json.dumps(output, indent=4))
+            return output
+        return {}
 
     def list_groups(self):
         assert self.args.organization, 'Organization name is required'
-        result = run_command(
+        result = self.run_command(
             f'orgs/{self.args.organization}/actions/runner-groups', options= ['-X', 'GET', '--paginate'])
 
-        if self.json_output:
-            print(json.dumps(result, indent=4))
-        else:
-            table = PrettyTable()
-            table.field_names = ['ID', 'Name']
-            for group in result['runner_groups']:
-                table.add_row([group['id'], group['name']])
-            print(table)
+        table = PrettyTable()
+        table.field_names = ['ID', 'Name']
+        for group in result['runner_groups']:
+            table.add_row([group['id'], group['name']])
+        print(table)
 
     def show_group(self):
         assert self.args.organization, 'Organization name is required'
         if self.args.info_type in ['all', 'runners']:
-            result = run_command(
+            result = self.run_command(
                 f'orgs/{self.args.organization}/actions/runner-groups/{self.args.group_id}/runners',
                 options=['-X', 'GET', '--paginate'])
 
             print('Linked runners:')
-            if self.json_output:
-                print(json.dumps(result, indent=4))
-            else:
-                table = PrettyTable()
-                table.field_names = ['ID', 'Name', 'Status', 'Busy', 'Labels']
-                table._max_width = {'Labels': 100}
-                for runner in result['runners']:
-                    if runner['status'] == 'offline':
-                        status = GHRunnerExtension.R + runner['status'] + GHRunnerExtension.N
-                    else:
-                        status = GHRunnerExtension.G + runner['status'] + GHRunnerExtension.N
+            table = PrettyTable()
+            table.field_names = ['ID', 'Name', 'Status', 'Busy', 'Labels']
+            table._max_width = {'Labels': 100}
+            for runner in result['runners']:
+                if runner['status'] == 'offline':
+                    status = GHRunnerExtension.R + runner['status'] + GHRunnerExtension.N
+                else:
+                    status = GHRunnerExtension.G + runner['status'] + GHRunnerExtension.N
 
-                    busy = runner['busy']
-                    if runner['busy']:
-                        busy = GHRunnerExtension.Y + 'True' + GHRunnerExtension.N
+                busy = runner['busy']
+                if runner['busy']:
+                    busy = GHRunnerExtension.Y + 'True' + GHRunnerExtension.N
 
-                    table.add_row([
-                        runner['id'],
-                        runner['name'],
-                        status,
-                        busy ,
-                        ', '.join([label['name'] for label in runner['labels']]),
-                    ])
-                print(table)
+                table.add_row([
+                    runner['id'],
+                    runner['name'],
+                    status,
+                    busy ,
+                    ', '.join([label['name'] for label in runner['labels']]),
+                ])
+            print(table)
         if self.args.info_type in ['all', 'repos']:
-            result = run_command(
+            result = self.run_command(
                 f'orgs/{self.args.organization}/actions/runner-groups/{self.args.group_id}/repositories',
                 options=['-X', 'GET', '--paginate'])
             print('Linked repositories:')
-            if self.json_output:
-                print(json.dumps(result, indent=4))
-            else:
-                table = PrettyTable()
-                table.field_names = ['ID', 'Name']
-                for repo in result['repositories']:
-                    table.add_row([
-                        repo['id'],
-                        repo['full_name'],
-                    ])
-                print(table)
+            table = PrettyTable()
+            table.field_names = ['ID', 'Full name', 'Description']
+            table._max_width = {'Description': 100}
+            for repo in result['repositories']:
+                table.add_row([repo['id'], repo['full_name'], repo['description']])
+            print(table)
 
     def create_group(self):
         assert self.args.organization, 'Organization name is required'
         assert self.args.name, 'Group name is required'
         assert self.args.visibility, 'Visibility is required'
 
-        result = run_command(
+        result = self.run_command(
             f'orgs/{self.args.organization}/actions/runner-groups',
             options=['-X', 'POST', '-F', f'name={self.args.name}', '-F', f'visibility={self.args.visibility}'])
-        if self.json_output:
-            print(json.dumps(result, indent=4))
         print(f'Group({result["id"]}) with name: {result["name"]} created.')
 
     def link_repo(self):
@@ -104,7 +104,7 @@ class GHRunnerExtension:
         assert self.args.group_id, 'Group ID is required'
         assert self.args.repo_id, 'Repository ID is required'
 
-        result = run_command(
+        result = self.run_command(
             f'orgs/{self.args.organization}/actions/runner-groups/{self.args.group_id}/repositories/{self.args.repo_id}',
             options=['-X', 'PUT'])
         print(f'Repository({self.args.repo_id}) linked to group({self.args.group_id})')
@@ -114,7 +114,7 @@ class GHRunnerExtension:
         assert self.args.group_id, 'Group ID is required'
         assert self.args.repo_id, 'Repository ID is required'
 
-        result = run_command(
+        result = self.run_command(
             f'orgs/{self.args.organization}/actions/runner-groups/{self.args.group_id}/repositories/{self.args.repo_id}',
             options=['-X', 'DELETE'])
         print(f'Repository({self.args.repo_id}) unlinked from group({self.args.group_id})')
@@ -123,14 +123,26 @@ class GHRunnerExtension:
         assert self.args.organization, 'Organization name is required'
         assert self.args.group_id, 'Group ID is required'
 
-        result = run_command(
+        result = self.run_command(
             f'orgs/{self.args.organization}/actions/runner-groups/{self.args.group_id}',
             options=['-X', 'DELETE'])
         print(f'Group({self.args.group_id}) deleted')
 
+    def list_repos(self):
+        assert self.args.organization, 'Organization name is required'
+        result = self.run_command(
+            f'orgs/{self.args.organization}/repos',
+            options=['-X', 'GET', '--paginate'])
+        table = PrettyTable()
+        table.field_names = ['ID', 'Full name', 'Description']
+        table._max_width = {'Description': 100}
+        for repo in result:
+            table.add_row([repo['id'], repo['full_name'], repo['description']])
+        print(table)
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Github CLI self-hosted runner extension')
-    parser.add_argument('--json', action='store_true', help='Output as plain JSON')
+    parser.add_argument('--json', action='store_true', help='Additionally show responses as plain JSON')
     parser.add_argument(
         '--organization',
         type=str,
@@ -201,25 +213,22 @@ def parse_args():
     group_sp_delete_sp.add_argument('group_id', type=int, help='Group ID')
     group_sp_delete_sp.set_defaults(func='delete_group')
 
+    #
+    # repo
+    #
+    repo_sp = subparsers.add_parser('repo', help='Manage organization repositories')
+    repo_sp_subparsers = repo_sp.add_subparsers(title='Repo subcommands')
+
+    # list
+    repo_sp_list_sp = repo_sp_subparsers.add_parser('list', help='List all org repositories')
+    repo_sp_list_sp.set_defaults(func='list_repos')
+
     return parser.parse_args()
-
-
-def run_command(endpoint: str, options: list) -> dict:
-    args = ['gh', 'api', endpoint]
-    args.extend(options)
-
-    result = subprocess.run(args, capture_output=True)
-    if result.stderr:
-        raise GHCLIException(result.stderr.decode('utf-8'))
-    if result.stdout:
-        return json.loads(result.stdout)
-    return {}
 
 
 def main():
     args = parse_args()
-    gh_runner_extension = GHRunnerExtension(args)
-    getattr(gh_runner_extension, args.func)()
+    getattr(GHRunnerExtension(args), args.func)()
 
 
 if __name__ == '__main__':
