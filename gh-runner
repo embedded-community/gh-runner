@@ -87,6 +87,18 @@ class GHRunnerExtension:
                     ])
                 print(table)
 
+    def create_group(self):
+        assert self.args.organization, 'Organization name is required'
+        assert self.args.name, 'Group name is required'
+        assert self.args.visibility, 'Visibility is required'
+
+        result = run_command(
+            f'orgs/{self.args.organization}/actions/runner-groups',
+            options=['-X', 'POST', '-F', f'name={self.args.name}', '-F', f'visibility={self.args.visibility}'])
+        if self.json_output:
+            print(json.dumps(result, indent=4))
+        print(f'Group({result["id"]}) with name: {result["name"]} created.')
+
     def link_repo(self):
         assert self.args.organization, 'Organization name is required'
         assert self.args.group_id, 'Group ID is required'
@@ -138,6 +150,17 @@ def parse_args():
     groups_sp_list_sp = groups_sp_subparsers.add_parser('list', help='List all groups')
     groups_sp_list_sp.set_defaults(func='list_groups')
 
+    # create
+    groups_sp_create_sp = groups_sp_subparsers.add_parser('create', help='Create new group')
+    groups_sp_create_sp.add_argument('name', type=str, help='Group name')
+    groups_sp_create_sp.add_argument(
+        'visibility',
+         type=str,
+         choices=['all', 'selected', 'private'],
+         help='Visibility for repos inside org, one of all|selected|private',
+         default='selected')
+    groups_sp_create_sp.set_defaults(func='create_group')
+
     #
     # group
     #
@@ -181,14 +204,16 @@ def parse_args():
     return parser.parse_args()
 
 
-def run_command(endpoint: str, options: list):
+def run_command(endpoint: str, options: list) -> dict:
     args = ['gh', 'api', endpoint]
     args.extend(options)
 
     result = subprocess.run(args, capture_output=True)
     if result.stderr:
         raise GHCLIException(result.stderr.decode('utf-8'))
-    return json.loads(result.stdout)
+    if result.stdout:
+        return json.loads(result.stdout)
+    return {}
 
 
 def main():

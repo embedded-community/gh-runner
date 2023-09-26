@@ -1,5 +1,7 @@
 # gh-runner
-Github CLI extension for managing github self-hosted action runners
+Github CLI extension for managing github self-hosted action runners.
+
+Most of the features in the extension require github enterprise.
 
 ## Installation
 
