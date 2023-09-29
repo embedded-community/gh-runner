@@ -20,7 +20,7 @@ Each command provides detailed help with `--help` parameter.
 ### List organization self-hosted runner groups
 
 ```bash
-$ gh runner groups
+$ gh runner groups list
 ```
 
 ### Create organization self-hosted runner group
