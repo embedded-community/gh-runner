@@ -51,15 +51,22 @@ class GHRunnerExtension:
     def show_group(self):
         assert self.args.organization, 'Organization name is required'
         if self.args.info_type in ['all', 'runners']:
-            result = self.run_command(
-                f'orgs/{self.args.organization}/actions/runner-groups/{self.args.group_id}/runners',
-                options=['-X', 'GET', '--paginate'])
+            runners = []
+            index = 1
+            while True:
+                result = self.run_command(
+                    f'orgs/{self.args.organization}/actions/runner-groups/{self.args.group_id}/runners',
+                    options=['-X', 'GET',  '-f', 'per_page=100', '-f', f'page={index}'])
+                index += 1
+                runners.extend(result['runners'])
+                if len(runners) >= result['total_count']:
+                    break
 
-            print('Linked runners:')
+            print(f'Linked runners (count:{len(runners)}):')
             table = PrettyTable()
             table.field_names = ['ID', 'Name', 'Status', 'Busy', 'Labels']
             table._max_width = {'Labels': 100}
-            for runner in result['runners']:
+            for runner in runners:
                 if runner['status'] == 'offline':
                     status = GHRunnerExtension.R + runner['status'] + GHRunnerExtension.N
                 else:
@@ -187,7 +194,7 @@ def parse_args():
          type=str,
          choices=['repos', 'runners', 'all'],
          help='Info type, one of repos|runners|all',
-         default=True)
+         default='all')
     group_sp_show_sp.set_defaults(func='show_group')
 
     # manage
